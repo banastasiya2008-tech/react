@@ -1,76 +1,95 @@
-import { Router } from "express";
-import { gameService } from "../services/game.service.js";
+import { Router, Request, Response } from 'express';
+import { GameRepository } from '../repositories/game.repository.js';
 
 const router = Router();
+const gameRepo = new GameRepository();
 
-router.get("/", async (_req, res) => {
-	const result = await gameService.getAll();
-	if (!result) {
-		res.status(404).json({ error: "Game not found" });
-		return;
-	}
-	res.json(result);
+// router.use(authMiddleware);
+
+function getUserId(req: Request): number {
+  return (req as any).user?.id;
+}
+
+router.get('/', async (req: Request, res: Response) => {
+  const page = parseInt(req.query.page as string) || 1;
+  const limit = parseInt(req.query.limit as string) || 10;
+  const result = await gameRepo.getAll(getUserId(req), page, limit);
+  res.json(result);
 });
 
-router.get("/search", async (req, res) => {
-	const query = req.query.q as string;
-	const result = await gameService.search(query);
-	res.json(result);
+router.get('/search', async (req: Request, res: Response) => {
+  const q = req.query.q as string;
+  const page = parseInt(req.query.page as string) || 1;
+  const limit = parseInt(req.query.limit as string) || 10;
+
+  if (!q) {
+    const result = await gameRepo.getAll(getUserId(req), page, limit);
+    return res.json(result);
+  }
+
+  const result = await gameRepo.search(getUserId(req), q, page, limit);
+  res.json(result);
 });
 
-router.get("/filter", async (req, res) => {
-	const genre = req.query.genre as string;
-	const result = await gameService.filterByGenre(genre);
-	res.json(result);
+router.get('/:id', async (req: Request, res: Response) => {
+  const gameId = parseInt(req.params.id as string, 10);
+  if (isNaN(gameId)) {
+    res.status(400).json({ error: 'Invalid game ID' });
+    return;
+  }
+
+  const result = await gameRepo.getById(gameId);
+  if (!result) {
+    res.status(404).json({ error: 'Game not found' });
+    return;
+  }
+
+  res.json(result);
 });
 
-router.get("/:id", async (req, res) => {
-	const gameId = req.params.id;
-	const result = await gameService.getById(parseInt(gameId));
-	if (!result) {
-		res.status(404).json({ error: "Game not found" });
-		return;
-	}
-	res.json(result);
+router.post('/new', async (req: Request, res: Response) => {
+  try {
+    const result = await gameRepo.create(getUserId(req), req.body);
+    res.status(201).json(result);
+  } catch (error: any) {
+    res.status(400).json({ error: error.message });
+  }
 });
 
-router.post("/new", async (_req, res) => {
-	try {
-		const result = await gameService.create(_req.body);
-		res.status(201).json(result);
-	} catch (error) {
-		res.status(400).json({ error: "Failed to create game" });
-	}
+router.put('/:id', async (req: Request, res: Response) => {
+  try {
+    const gameId = parseInt(req.params.id as string, 10);
+    if (isNaN(gameId)) {
+      res.status(400).json({ error: 'Invalid game ID' });
+      return;
+    }
+
+    const result = await gameRepo.update(gameId, getUserId(req), req.body);
+    if (!result) {
+      res.status(404).json({ error: 'Game not found' });
+      return;
+    }
+
+    res.json(result);
+  } catch (error: any) {
+    res.status(400).json({ error: error.message });
+  }
 });
 
-router.put("/:id", async (req, res) => {
-	const gameId = req.params.id;
-	try {
-		const result = await gameService.update(parseInt(gameId), req.body);
-		if (!result) {
-			res.status(404).json({ error: "Game not found" });
-			return;
-		}
-		res.json(result);
-	} catch (error) {
-		res.status(400).json({ error: "Failed to update game" });
-	}
-});
+router.delete('/:id', async (req: Request, res: Response) => {
+  const gameId = parseInt(req.params.id as string, 10);
+  if (isNaN(gameId)) {
+    res.status(400).json({ error: 'Invalid game ID' });
+    return;
+  }
 
-router.delete("/:id", async (req, res) => {
-	const gameId = req.params.id;
-	try {
-		const result = await gameService.delete(parseInt(gameId));
-		
-		if (!result) {
-			res.status(404).json({ error: "Game not found" });
-			return;
-		}
+  const success = await gameRepo.delete(gameId, getUserId(req));
+  if (!success) {
+    res.status(404).json({ error: 'Game not found' });
+    return;
+  }
 
-		res.json({ message: "Game deleted successfully" });
-	} catch (error) {
-		res.status(400).json({ error: "Failed to delete game" });
-	}
+  res.json({ message: 'Game deleted' });
 });
 
 export default router;

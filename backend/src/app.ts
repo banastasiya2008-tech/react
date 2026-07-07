@@ -1,38 +1,26 @@
 import express from 'express';
 import dotenv from 'dotenv';
 import cors from 'cors';
-
 import gamesRouter from './routes/games.route.js';
+import authRouter from './routes/auth.route.js';
+import userRouter from './routes/user.route.js';
 
 dotenv.config();
-const PORT = process.env.PORT || 5003;
 
+const PORT = process.env.PORT || 5003;
 const app = express();
 
-// CORS — разрешить все домены (для обучения)
 app.use(cors());
-
-// Или строже: только определённые порты разработки
-// app.use(cors({
-// 	origin: ['http://localhost:3000', 'http://127.0.0.1:5500'],
-// 	methods: ['GET', 'POST', 'PUT', 'DELETE'],
-// 	allowedHeaders: ['Content-Type'],
-// }));
-
-// Middleware
 app.use(express.json());
 
 app.use('/api/games', gamesRouter);
+app.use('/api/auth', authRouter);
+app.use('/api/user', userRouter);
 
 app.get('/api/health', (_req, res) => {
-	res.json({ status: 'ok', timestamp: new Date().toISOString() });
-});
-
-// 404 handler
-app.use((_req, res) => {
-	res.status(404).json({ message: 'Endpoint not found' });
+  res.json({ status: 'ok' });
 });
 
 app.listen(PORT, () => {
-	console.log(`Server is running on port ${PORT}`);
+  console.log(`Server running on port ${PORT}`);
 });

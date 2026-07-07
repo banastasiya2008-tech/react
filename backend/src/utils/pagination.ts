@@ -1,18 +1,28 @@
-import { PaginatedResult } from "../types/pagination.type.js";
+export interface PaginatedResult<T> {
+  data: T[];
+  meta: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+    hasNext: boolean;
+    hasPrev: boolean;
+  };
+}
 
-export const returnPaginatedResults = <T>(data: T[], page: number, limit: number): PaginatedResult<T> => {
-	const pageNumber = page || 1;
-	const limitOfItems = limit || 10;
-	const startIndex = (pageNumber - 1) * limitOfItems;
-	return { 
-		data: data.slice(startIndex, startIndex + limitOfItems),
-		meta: {
-			page: pageNumber,
-			limit: limitOfItems, 
-			total: data.length,
-			totalPages: Math.ceil(data.length / limitOfItems),
-			hasNext: startIndex + limitOfItems < data.length,
-			hasPrev: startIndex > 0
-		}
-	};
-};
+export function buildPaginationMeta(page: number, limit: number, total: number) {
+  const totalPages = Math.max(1, Math.ceil(total / limit));
+  const safePage = Math.min(page, totalPages);
+  return {
+    page: safePage,
+    limit,
+    total,
+    totalPages,
+    hasNext: safePage < totalPages,
+    hasPrev: safePage > 1,
+  };
+}
+
+export function getOffset(page: number, limit: number): number {
+  return Math.max(0, (page - 1) * limit);
+}

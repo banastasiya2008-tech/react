@@ -1,15 +1,25 @@
-import { readFile, writeFile } from 'node:fs/promises';
-import { join } from 'node:path';
-import { DB } from '../types/db.type.js';
+import { Pool } from 'pg';
+import dotenv from 'dotenv';
 
-const DB_PATH = join(process.cwd(), "db", "db.json");
+dotenv.config();
 
-// Simple file-based DB operations
-export async function readDB(): Promise<DB> {
-	const data = await readFile(DB_PATH, 'utf-8');
-	return JSON.parse(data) as DB;
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+});
+
+export async function query(text: string, params?: any[]) {
+  const result = await pool.query(text, params);
+  return result.rows;
 }
 
-export async function writeDB(db: DB): Promise<void> {
-	await writeFile(DB_PATH, JSON.stringify(db, null, 2), 'utf-8');
+export async function queryOne(text: string, params?: any[]) {
+  const rows = await query(text, params);
+  return rows[0];
 }
+
+export async function exec(text: string, params?: any[]) {
+  const result = await pool.query(text, params);
+  return { rowCount: result.rowCount || 0, lastID: result.rows[0]?.id };
+}
+
+export default pool;
