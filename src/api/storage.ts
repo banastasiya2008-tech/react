@@ -1,48 +1,51 @@
-import { getGames, getGameById, createGame, updateGame, deleteGame } from "./api";
-import type { Game, GameFormData } from "../types";
+import { client } from './client';
 
 export class GameStorage {
-  async getAll(): Promise<Game[]> {
-    return getGames();
+  async getAll(page = 1, limit = 10) {
+    const response = await client(`/games?page=${page}&limit=${limit}`);
+    if (!response.ok) throw new Error('Failed to fetch games');
+    return response.json();
   }
 
-  async getById(id: number): Promise<Game | undefined> {
-    return getGameById(id);
+  async search(query: string, page = 1, limit = 10) {
+    const response = await client(
+      `/games/search?q=${encodeURIComponent(query)}&page=${page}&limit=${limit}`
+    );
+    if (!response.ok) throw new Error('Failed to search games');
+    return response.json();
   }
 
-  async add(data: GameFormData): Promise<Game> {
-    const apiData = {
-      title: data.name,
-      genre: data.genre,
-      releaseYear: data.year,
-      developer: data.dev,
-      publisher: data.pub,
-      rating: data.score,
-      platform: data.plat,
-      coverImage: data.cover,
-      tags: data.tags,
-      description: data.desc,
-    };
-    return createGame(apiData);
+  async getById(id: number) {
+    const response = await client(`/games/${id}`);
+    if (!response.ok) throw new Error('Game not found');
+    return response.json();
   }
 
-  async update(id: number, data: GameFormData): Promise<Game> {
-    const apiData = {
-      title: data.name,
-      genre: data.genre,
-      releaseYear: data.year,
-      developer: data.dev,
-      publisher: data.pub,
-      rating: data.score,
-      platform: data.plat,
-      coverImage: data.cover,
-      tags: data.tags,
-      description: data.desc,
-    };
-    return updateGame(id, apiData);
+  async create(data: any) {
+    const response = await client(`/games/new`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+    if (!response.ok) throw new Error('Failed to create game');
+    return response.json();
   }
 
-  async delete(id: number): Promise<void> {
-    return deleteGame(id);
+  async update(id: number, data: any) {
+    const response = await client(`/games/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+    if (!response.ok) throw new Error('Failed to update game');
+    return response.json();
+  }
+
+  async delete(id: number) {
+    const response = await client(`/games/${id}`, {
+      method: 'DELETE',
+    });
+    if (!response.ok) throw new Error('Failed to delete game');
+    return response.json();
   }
 }

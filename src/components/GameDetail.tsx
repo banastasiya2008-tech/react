@@ -1,95 +1,138 @@
-import React from "react";
-import type { Game } from "../types";
+import React, { useState } from 'react';
+import type { Game } from '../types';
+import { useAuthStore } from '../store/useAuthStore';
+import { useCartStore } from '../store/useCartStore';
+import { rateGame } from '../api/api';
+import { useToast } from '../hooks/useToast';
 
 interface GameDetailProps {
   game: Game;
   onEdit: (id: number) => void;
   onDelete: (id: number) => void;
-  onClose: () => void;
+  onBack: () => void;
 }
 
-const scoreColor = (s: number): string => {
-  if (s >= 8) return "var(--green)";
-  if (s >= 6) return "var(--amber-dim)";
-  return "var(--red)";
-};
+function scoreColor(score: number): string {
+  if (score >= 9) return '#4caf50';
+  if (score >= 7) return '#ff9800';
+  return '#f44336';
+}
 
-export const GameDetail: React.FC<GameDetailProps> = ({
-  game,
-  onEdit,
-  onDelete,
-  onClose,
-}) => {
+export const GameDetail: React.FC<GameDetailProps> = ({ game, onEdit, onDelete, onBack }) => {
+  const [imgError, setImgError] = useState(false);
+  const [userRating, setUserRating] = useState<number>(0);
+  const [hoverRating, setHoverRating] = useState<number>(0);
+  const [avgRating, setAvgRating] = useState<number>(Number(game.score) || 0);
+  const [ratingCount, setRatingCount] = useState<number>(0);
+
+  const hasValidCover = game.cover && game.cover.startsWith('http') && !imgError;
+  const isAdmin = useAuthStore((state) => state.isAdmin());
+  const isModerator = useAuthStore((state) => state.isModerator());
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+  const { isInCart, addItem } = useCartStore();
+  const { showToast, showError } = useToast();
+  const inCart = isInCart(game.id);
+
+  const handleRate = async (rating: number) => {
+    try {
+      const result = await rateGame(game.id, rating);
+      setUserRating(rating);
+      setAvgRating(result.average);
+      setRatingCount(result.count);
+      showToast(`Rated ${rating}/10! Average: ${result.average.toFixed(1)}`);
+    } catch (err: any) {
+      showError(err.message || 'Failed to rate');
+    }
+  };
+
+  const handleAddToCart = async () => {
+    try {
+      await addItem(game.id);
+      showToast(`${game.name} added to cart`);
+    } catch (err: any) {
+      showError(err.message || 'Failed to add to cart');
+    }
+  };
+
   return (
-    <div>
-      <div className="det-art-wrap">
-        {game.cover ? (
-          <img
-            className="det-art"
-            src={game.cover}
-            alt={game.name}
-            onError={(e) => {
-              (e.target as HTMLElement).style.display = "none";
-              const next = (e.target as HTMLElement).nextElementSibling as HTMLElement;
-              if (next) next.style.display = "flex";
-            }}
-          />
-        ) : null}
-        <div
-          className="det-art-ph"
-          style={{ display: game.cover ? "none" : "flex" }}
-        >
-          <span className="art-ph-text">{game.name}</span>
+    <div className="game-detail-page">
+      <button className="btn-ghost cart-back-btn game-detail-back" onClick={onBack}>
+        &larr; Back to catalog
+      </button>
+
+      <div className="game-detail">
+        <div className="game-detail-cover">
+          {hasValidCover ? (
+            <img
+              src={game.cover}
+              alt={game.name}
+              onError={() => setImgError(true)}
+            />
+          ) : (
+            <div className="game-detail-cover-placeholder">No Cover</div>
+          )}
         </div>
-      </div>
-      <div className="det-info">
-        <div className="det-title">{game.name}</div>
-        <div className="det-chips">
-          {game.genre ? <span className="chip chip-genre">{game.genre}</span> : null}
-          {game.year ? <span className="chip chip-year">{game.year}</span> : null}
-          {game.plat.map((p) => (
-            <span key={p} className="chip chip-plat">
-              {p}
-            </span>
-          ))}
-          {game.tags.map((t) => (
-            <span key={t} className="chip chip-tag">
-              {t}
-            </span>
-          ))}
+
+        <div className="game-detail-info">
+          <h2>{game.name}</h2>
+
+          <div className="game-detail-score" style={{ color: scoreColor(avgRating) }}>
+            {avgRating.toFixed(1)} / 10
+            {ratingCount > 0 && (
+              <span className="game-detail-rating-count"> ({ratingCount} ratings)</span>
+            )}
+          </div>
+
+          {game.desc && (
+            <p className="game-detail-description">{game.desc}</p>
+          )}
+
+          {isAuthenticated && (
+            <div className="game-detail-rate">
+              <span>Your rating:</span>
+              <div className="game-detail-stars">
+                {Array.from({ length: 10 }, (_, i) => i + 1).map((star) => (
+                  <span
+                    key={star}
+                    className="game-detail-star"
+                    style={{
+                      color: (hoverRating || userRating) >= star ? '#ff9800' : '#ccc',
+                      cursor: 'pointer',
+                    }}
+                    onMouseEnter={() => setHoverRating(star)}
+                    onMouseLeave={() => setHoverRating(0)}
+                    onClick={() => handleRate(star)}
+                  >
+                    ★
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div className="game-detail-actions">
+            <button
+              className="game-detail-cart-btn"
+              onClick={handleAddToCart}
+              disabled={inCart}
+            >
+              {inCart ? 'In Cart' : 'Add to Cart'}
+            </button>
+
+            {(isAdmin || isModerator) && (
+              <button className="game-detail-edit-btn" onClick={() => onEdit(game.id)}>
+                Edit
+              </button>
+            )}
+
+            {isAdmin && (
+              <button className="game-detail-delete-btn" onClick={() => onDelete(game.id)}>
+                Delete
+              </button>
+            )}
+          </div>
         </div>
-        <div className="det-score-row">
-          <span className="det-score-num" style={{ color: scoreColor(game.score) }}>
-            {game.score.toFixed(1)}
-          </span>
-          <span className="det-score-denom">/ 10</span>
-        </div>
-      </div>
-      <div className="det-body">
-        <div>
-          <div className="det-label">Description</div>
-          <div className="det-text">{game.desc || "No description available"}</div>
-        </div>
-        <div>
-          <div className="det-label">Developer</div>
-          <div className="det-text">{game.dev || "Unknown"}</div>
-        </div>
-        <div>
-          <div className="det-label">Publisher</div>
-          <div className="det-text">{game.pub || "Unknown"}</div>
-        </div>
-      </div>
-      <div className="det-actions">
-        <button className="btn-edit-det" onClick={() => onEdit(game.id)}>
-          Change
-        </button>
-        <button className="btn-del-det" onClick={() => onDelete(game.id)}>
-          Delete
-        </button>
-        <button className="btn-ghost" style={{ marginLeft: "auto" }} onClick={onClose}>
-          Close
-        </button>
       </div>
     </div>
   );
-};
+}

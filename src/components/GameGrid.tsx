@@ -4,7 +4,7 @@ import { GameCard } from "./GameCard";
 
 interface GameGridProps {
   games: Game[];
-  view: "grid" | "list";
+  loading?: boolean;
   onOpen: (id: number) => void;
   onEdit: (id: number) => void;
   onDelete: (id: number) => void;
@@ -12,11 +12,22 @@ interface GameGridProps {
 
 export const GameGrid: React.FC<GameGridProps> = ({
   games,
-  view,
+  loading,
   onOpen,
   onEdit,
   onDelete,
 }) => {
+  if (loading) {
+    return (
+      <div className="grid">
+        <div className="empty">
+          <div className="empty-icon">Loading...</div>
+          <h3>Loading...</h3>
+        </div>
+      </div>
+    );
+  }
+
   if (games.length === 0) {
     return (
       <div className="grid">
@@ -30,12 +41,11 @@ export const GameGrid: React.FC<GameGridProps> = ({
   }
 
   return (
-    <div className={`grid ${view === "list" ? "list" : ""}`}>
-      {games.map((g, i) => (
+    <div className="grid">
+      {games.map((g) => (
         <GameCard
           key={g.id}
           game={g}
-          index={i}
           onOpen={onOpen}
           onEdit={onEdit}
           onDelete={onDelete}

@@ -4,19 +4,42 @@ import { Sidebar } from "./components/Sidebar";
 import { GameGrid } from "./components/GameGrid";
 import { GameForm } from "./components/GameForm";
 import { GameDetail } from "./components/GameDetail";
+import CartPage from "./components/CartPage";
 import { Toast } from "./components/Toast";
 import { Overlay } from "./components/Overlay";
 import { useGames } from "./hooks/useGames";
 import { useFilters } from "./hooks/useFilters";
 import { useToast } from "./hooks/useToast";
+import { useAuthStore } from "./store/useAuthStore";
+import { useCartStore } from "./store/useCartStore";
 import type { Game, GameFormData } from "./types";
 
-type ViewMode = "grid" | "list";
-type OverlayName = "form" | "detail";
+type OverlayName = "form";
+type ViewName = "catalog" | "cart" | "detail";
 
 export const App: React.FC = () => {
-  const { allGames, loading, loadGames, addGame, updateGame, deleteGame, getGameById } =
-    useGames();
+  useEffect(() => {
+    const init = async () => {
+      const token = useAuthStore.getState().token;
+      if (!token) {
+        try {
+          const res = await fetch('http://localhost:5003/api/auth/refresh', {
+            method: 'POST',
+            credentials: 'include',
+          });
+          if (res.ok) {
+            const data = await res.json();
+            useAuthStore.getState().login(data.user, data.accessToken);
+          }
+        } catch {
+          // нет валидной сессии
+        }
+      }
+    };
+    init();
+  }, []);
+
+  const { allGames, loading, addGame, updateGame, deleteGame } = useGames();
   const {
     filters,
     setQuery,
@@ -29,149 +52,129 @@ export const App: React.FC = () => {
     genreCounts,
   } = useFilters(allGames);
   const { toast, showToast, showError } = useToast();
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+  const fetchCart = useCartStore((state) => state.fetchCart);
 
-  const [view, setView] = useState<ViewMode>("grid");
+  useEffect(() => {
+    if (isAuthenticated) fetchCart();
+  }, [isAuthenticated, fetchCart]);
+
+  const [view, setView] = useState<ViewName>("catalog");
   const [activeOverlay, setActiveOverlay] = useState<OverlayName | null>(null);
   const [selectedGame, setSelectedGame] = useState<Game | null>(null);
   const [editingGame, setEditingGame] = useState<Game | null>(null);
 
-  // Close overlays on Escape
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        setActiveOverlay(null);
-      }
-    };
-    document.addEventListener("keydown", handleKeyDown);
-    return () => document.removeEventListener("keydown", handleKeyDown);
+  const handleOpenDetail = useCallback((game: Game) => {
+    setSelectedGame(game);
+    setView("detail");
   }, []);
 
-  const handleAddClick = useCallback(() => {
+  const handleOpenEdit = useCallback((id: number) => {
+    const game = allGames.find((g) => g.id === id);
+    if (game) {
+      setEditingGame(game);
+      setActiveOverlay("form");
+    }
+  }, [allGames]);
+
+  const handleOpenCreate = useCallback(() => {
     setEditingGame(null);
-    setSelectedGame(null);
     setActiveOverlay("form");
   }, []);
-
-  const handleOpenDetail = useCallback(
-    async (id: number) => {
-      const game = await getGameById(id);
-      if (game) {
-        setSelectedGame(game);
-        setActiveOverlay("detail");
-      }
-    },
-    [getGameById]
-  );
-
-  const handleOpenEdit = useCallback(
-    async (id: number) => {
-      const game = await getGameById(id);
-      if (game) {
-        setEditingGame(game);
-        setActiveOverlay("form");
-      }
-    },
-    [getGameById]
-  );
 
   const handleSave = useCallback(
     async (data: GameFormData) => {
       try {
         if (editingGame) {
           await updateGame(editingGame.id, data);
-          showToast("Game updated ✓");
+          showToast("Game updated successfully");
         } else {
           await addGame(data);
-          showToast("Game added ✓");
+          showToast("Game created successfully");
         }
         setActiveOverlay(null);
         setEditingGame(null);
-      } catch (e) {
-        showError("Failed to save game.");
-        console.error(e);
+      } catch (err: any) {
+        showError(err.message || "Failed to save game");
       }
     },
-    [editingGame, updateGame, addGame, showToast, showError]
+    [editingGame, addGame, updateGame, showToast, showError]
   );
 
   const handleDelete = useCallback(
     async (id: number) => {
-      if (!confirm("Delete this game?")) return;
       try {
         await deleteGame(id);
-        showToast("Game deleted ✓");
+        showToast("Game deleted successfully");
         setActiveOverlay(null);
         setSelectedGame(null);
-      } catch (e) {
-        showError("Failed to delete game.");
-        console.error(e);
+        setView("catalog");
+      } catch (err: any) {
+        showError(err.message || "Failed to delete game");
       }
     },
     [deleteGame, showToast, showError]
   );
-
-  if (loading) {
-    return (
-      <div className="app">
-        <div style={{ padding: 40, textAlign: "center" }}>
-          <span className="empty-icon">LOADING</span>
-          <h3>Loading games...</h3>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="app">
       <Header
         query={filters.query}
         onQueryChange={setQuery}
-        totalCount={allGames.length}
-        onAddClick={handleAddClick}
+        totalCount={filteredGames.length}
+        onAddClick={handleOpenCreate}
+        onCartClick={() => setView("cart")}
       />
 
-      <div className="main">
-        <Sidebar
-          genres={genres}
-          genreCounts={genreCounts}
-          activeGenre={filters.genre}
-          sort={filters.sort}
-          minScore={filters.minScore}
-          onGenreChange={setGenre}
-          onSortChange={setSort}
-          onMinScoreChange={setMinScore}
-          onReset={resetFilters}
-        />
+      {view === "cart" && <CartPage onBack={() => setView("catalog")} />}
 
-        <main className="content">
-          <div className="content-header">
-            <span className="shown">
-              Shown: <span>{filteredGames.length}</span>
-            </span>
-            <div className="view-toggle">
-              <button
-                className={`view-btn ${view === "grid" ? "on" : ""}`}
-                onClick={() => setView("grid")}
-              >
-                Grid
-              </button>
-              <button
-                className={`view-btn ${view === "list" ? "on" : ""}`}
-                onClick={() => setView("list")}
-              >
-                List
-              </button>
-            </div>
-          </div>
-          <GameGrid
-            games={filteredGames}
-            view={view}
-            onOpen={handleOpenDetail}
-            onEdit={handleOpenEdit}
-            onDelete={handleDelete}
+      {view === "detail" && selectedGame && (
+        <GameDetail
+          game={selectedGame}
+          onEdit={(id) => {
+            setView("catalog");
+            handleOpenEdit(id);
+          }}
+          onDelete={handleDelete}
+          onBack={() => {
+            setView("catalog");
+            setSelectedGame(null);
+          }}
+        />
+      )}
+
+      {view === "catalog" && (
+        <div className="main">
+          <Sidebar
+            genres={genres}
+            genreCounts={genreCounts}
+            activeGenre={filters.genre}
+            onGenreChange={setGenre}
+            minScore={filters.minScore}
+            onMinScoreChange={setMinScore}
+            sort={filters.sort}
+            onSortChange={setSort}
+            onReset={resetFilters}
           />
-        </main>
-      </div>
+
+          <div className="content">
+            <div className="toolbar">
+              <span className="count">{filteredGames.length} games</span>
+            </div>
+
+            <GameGrid
+              games={filteredGames}
+              loading={loading}
+              onOpen={(id: number) => {
+                const game = allGames.find((g) => g.id === id);
+                if (game) handleOpenDetail(game);
+              }}
+              onEdit={handleOpenEdit}
+              onDelete={handleDelete}
+            />
+          </div>
+        </div>
+      )}
 
       <Overlay
         isOpen={activeOverlay === "form"}
@@ -184,25 +187,9 @@ export const App: React.FC = () => {
         />
       </Overlay>
 
-      <Overlay
-        isOpen={activeOverlay === "detail"}
-        onClose={() => setActiveOverlay(null)}
-        className="detail-content"
-      >
-        {selectedGame && (
-          <GameDetail
-            game={selectedGame}
-            onEdit={(id) => {
-              setActiveOverlay(null);
-              handleOpenEdit(id);
-            }}
-            onDelete={handleDelete}
-            onClose={() => setActiveOverlay(null)}
-          />
-        )}
-      </Overlay>
-
       <Toast message={toast.message} isError={toast.isError} visible={toast.visible} />
     </div>
   );
 };
+
+export default App;

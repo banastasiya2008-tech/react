@@ -1,0 +1,13 @@
+import { Request, Response } from 'express';
+import { GameService } from '../services/game.services.js';
+const gameService = new GameService();
+
+export class GameController {
+  async getAll(req: Request, res: Response) { try { const page = parseInt(req.query.page as string)||1; const limit = parseInt(req.query.limit as string)||10; const r = await gameService.getAllGames(page, limit); res.json(r); } catch (e: any) { res.status(500).json({ error: e.message }); } }
+  async search(req: Request, res: Response) { try { const q = req.query.q as string; const page = parseInt(req.query.page as string)||1; const limit = parseInt(req.query.limit as string)||10; const r = q ? await gameService.searchGames(q, page, limit) : await gameService.getAllGames(page, limit); res.json(r); } catch (e: any) { res.status(500).json({ error: e.message }); } }
+  async getById(req: Request, res: Response) { try { const id = parseInt(req.params.id as string, 10); if (isNaN(id)) { res.status(400).json({ error: 'Invalid ID' }); return; } const g = await gameService.getGameById(id); res.json(g); } catch (e: any) { res.status(e.message==='Game not found'?404:500).json({ error: e.message }); } }
+  async create(req: Request, res: Response) { try { const uid = (req as any).user?.id; if (!uid) { res.status(401).json({ error: 'Unauthorized' }); return; } const r = await gameService.createGame(uid, req.body); res.status(201).json(r); } catch (e: any) { res.status(400).json({ error: e.message }); } }
+  async update(req: Request, res: Response) { try { const id = parseInt(req.params.id as string, 10); const uid = (req as any).user?.id; if (!uid) { res.status(401).json({ error: 'Unauthorized' }); return; } const r = await gameService.updateGame(id, uid, req.body); res.json(r); } catch (e: any) { res.status(e.message.includes('Forbidden')?403:400).json({ error: e.message }); } }
+  async delete(req: Request, res: Response) { try { const id = parseInt(req.params.id as string, 10); const uid = (req as any).user?.id; if (!uid) { res.status(401).json({ error: 'Unauthorized' }); return; } const r = await gameService.deleteGame(id, uid); res.json(r); } catch (e: any) { res.status(e.message.includes('Forbidden')?403:500).json({ error: e.message }); } }
+  async rate(req: Request, res: Response) { try { const id = parseInt(req.params.id as string, 10); const uid = (req as any).user?.id; if (!uid) { res.status(401).json({ error: 'Unauthorized' }); return; } const { rating } = req.body; if (typeof rating !== 'number' || rating < 1 || rating > 10) { res.status(400).json({ error: 'Rating 1-10' }); return; } const r = await gameService.rateGame(uid, id, rating); res.json(r); } catch (e: any) { res.status(400).json({ error: e.message }); } }
+}

@@ -1,19 +1,18 @@
-import { Router, Request, Response } from 'express';
-import { UserRepository } from '../repositories/user.repository.js';
+import { Router } from 'express';
+import { UserController } from '../controllers/user.controller.js';
 import { authMiddleware } from '../middleware/auth.middleware.js';
-
 const router = Router();
-const userRepo = new UserRepository();
+const c = new UserController();
 
-router.get('/me', authMiddleware, async (req: Request, res: Response) => {
-  const userId = (req as any).user?.id;
-  if (!userId) {
-    res.status(401).json({ error: 'Not authenticated' });
-    return;
-  }
-  
-  const user = await userRepo.getById(userId);
-  res.json(user);
-});
+router.get('/', authMiddleware, c.getProfile);
+router.get('/library', authMiddleware, c.getLibrary);
+router.post('/library/:gameId', authMiddleware, c.addToLibrary);
+router.delete('/library/:gameId', authMiddleware, c.removeFromLibrary);
+
+// CART
+router.get('/cart', authMiddleware, c.getCart);
+router.post('/cart/:gameId', authMiddleware, c.addToCart);
+router.delete('/cart/:gameId', authMiddleware, c.removeFromCart);
+router.delete('/cart', authMiddleware, c.clearCart);
 
 export default router;

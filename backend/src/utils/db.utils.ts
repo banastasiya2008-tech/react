@@ -14,7 +14,7 @@ export async function query(text: string, params?: any[]) {
 
 export async function queryOne(text: string, params?: any[]) {
   const rows = await query(text, params);
-  return rows[0];
+  return rows[0] || null;
 }
 
 export async function exec(text: string, params?: any[]) {

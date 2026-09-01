@@ -29,6 +29,7 @@ export const GameForm: React.FC<GameFormProps> = ({ game, onSave, onCancel }) =>
     cover: "",
     tags: [],
     desc: "",
+    price: 0,
   });
 
   useEffect(() => {
@@ -39,11 +40,12 @@ export const GameForm: React.FC<GameFormProps> = ({ game, onSave, onCancel }) =>
         year: game.year,
         dev: game.dev,
         pub: game.pub,
-        score: game.score,
+        score: Number(game.score) || 0,
         plat: game.plat,
         cover: game.cover,
         tags: game.tags,
         desc: game.desc,
+        price: Number(game.price) || 0,
       });
     } else {
       setFormData({
@@ -57,6 +59,7 @@ export const GameForm: React.FC<GameFormProps> = ({ game, onSave, onCancel }) =>
         cover: "",
         tags: [],
         desc: "",
+        price: 0,
       });
     }
   }, [game]);
@@ -68,8 +71,18 @@ export const GameForm: React.FC<GameFormProps> = ({ game, onSave, onCancel }) =>
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
+  const handleYearChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    setFormData((prev) => ({ ...prev, year: value === "" ? null : parseInt(value, 10) }));
+  };
+
   const handleScoreChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFormData((prev) => ({ ...prev, score: parseFloat(e.target.value) }));
+  };
+
+  const handlePriceChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    setFormData((prev) => ({ ...prev, price: value === "" ? 0 : parseFloat(value) }));
   };
 
   const handlePlatformToggle = (plat: string) => {
@@ -93,7 +106,7 @@ export const GameForm: React.FC<GameFormProps> = ({ game, onSave, onCancel }) =>
     onSave(formData);
   };
 
-  const scoreStr = formData.score.toFixed(1);
+  const scoreStr = Number(formData.score || 0).toFixed(1);
 
   return (
     <form onSubmit={handleSubmit}>
@@ -134,7 +147,7 @@ export const GameForm: React.FC<GameFormProps> = ({ game, onSave, onCancel }) =>
             name="year"
             placeholder="2024"
             value={formData.year ?? ""}
-            onChange={handleChange}
+            onChange={handleYearChange}
           />
         </div>
         <div className="form-row">
@@ -170,6 +183,18 @@ export const GameForm: React.FC<GameFormProps> = ({ game, onSave, onCancel }) =>
             onChange={handleScoreChange}
           />
           <span className="score-big">{scoreStr}</span>
+        </div>
+        <div className="form-row">
+          <label>Price, $</label>
+          <input
+            type="number"
+            name="price"
+            min="0"
+            step="0.01"
+            placeholder="0.00"
+            value={formData.price}
+            onChange={handlePriceChange}
+          />
         </div>
         <div className="form-row">
           <label>Platforms</label>
@@ -226,4 +251,4 @@ export const GameForm: React.FC<GameFormProps> = ({ game, onSave, onCancel }) =>
       </div>
     </form>
   );
-};
+}

@@ -1,33 +1,34 @@
 import { Request, Response, NextFunction } from 'express';
-import { UserRepository } from '../repositories/user.repository.js';
+import { verifyToken } from '../services/token.service.js';
 
-const userRepo = new UserRepository();
-
-// user опциональный, но middleware всегда его ставит если проходит
 export interface AuthRequest extends Request {
-  user?: { id: number; username: string; email: string };
+  user?: { id: number; username: string; email: string; role: string };
 }
 
-export async function authMiddleware(
+export function authMiddleware(
   req: AuthRequest,
   res: Response,
   next: NextFunction
-): Promise<void> {
+): void {
   const authHeader = req.headers.authorization;
-
+  
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
     res.status(401).json({ error: 'No token provided' });
     return;
   }
 
   const token = authHeader.substring(7);
-  const user = await userRepo.getByToken(token);
 
-  if (!user) {
-    res.status(401).json({ error: 'Invalid token' });
-    return;
+  try {
+    const decoded = verifyToken(token);
+    req.user = { 
+      id: decoded.userId, 
+      username: decoded.username,
+      email: decoded.email,
+      role: decoded.role 
+    };
+    next();
+  } catch (error) {
+    res.status(401).json({ error: 'Invalid or expired token' });
   }
-
-  req.user = user;
-  next();
 }

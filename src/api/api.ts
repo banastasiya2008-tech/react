@@ -1,107 +1,137 @@
-import { Game, PaginatedResult } from "../types";
+import { Game, PaginatedResult, ApiGame, LoginDTO, RegisterDTO, AuthResponse } from "../types";
+import { client } from "./client";
 
-const API_BASE_URL = 'http://localhost:5003/api/games';
+const API_BASE_URL = 'http://localhost:5003/api';
+const AUTH_URL = `${API_BASE_URL}/auth`;
 
-const DESCRIPTIONS: Record<string, { dev: string; pub: string; desc: string; tags: string[] }> = {
-  "The Witcher 3: Wild Hunt": {
-    dev: "CD Projekt Red",
-    pub: "CD Projekt",
-    desc: "An epic open-world RPG following Geralt of Rivia across a war-ravaged fantasy world.",
-    tags: ["open world", "story"]
-  },
-  "Elden Ring": {
-    dev: "FromSoftware",
-    pub: "Bandai Namco",
-    desc: "An open-world soulslike set in the shattered Lands Between.",
-    tags: ["difficult", "dark fantasy"]
-  },
-  "Cyberpunk 2077": {
-    dev: "CD Projekt Red",
-    pub: "CD Projekt",
-    desc: "An open-world RPG set in the sprawling Night City.",
-    tags: ["open world", "cyberpunk"]
-  },
-  "Hollow Knight": {
-    dev: "Team Cherry",
-    pub: "Team Cherry",
-    desc: "A challenging 2D metroidvania set in the underground kingdom of Hallownest.",
-    tags: ["indie", "metroidvania"]
-  },
-  "God of War Ragnarök": {
-    dev: "Santa Monica Studio",
-    pub: "Sony",
-    desc: "Kratos and Atreus journey through the Nine Realms as Ragnarök looms.",
-    tags: ["story", "mythology"]
-  },
-  "Songs of Silence": {
-    dev: "Chimera Entertainment",
-    pub: "Chimera Entertainment",
-    desc: "A strategy game with RPG elements.",
-    tags: ["strategy", "fantasy"]
+export function getCoverImage(coverImage: string | undefined, title: string): string {
+  if (coverImage && coverImage.startsWith('http')) {
+    return coverImage;
   }
-};
+  return `https://placehold.co/300x400/1a1510/c9842b?text=${encodeURIComponent(title)}`;
+}
 
-const mapApiGame = (g: Record<string, unknown>): Game => {
-  const title = typeof g.title === 'string' ? g.title : 'Unknown';
-  const extra = DESCRIPTIONS[title] || { dev: "Unknown", pub: "Unknown", desc: "No description available", tags: [] };
+const mapApiGame = (g: ApiGame): Game => ({
+  id: g.id,
+  name: g.title,
+  genre: g.genre,
+  year: g.releaseYear,
+  dev: g.developer,
+  pub: g.publisher,
+  score: Number(g.rating) || 0,
+  plat: g.platform,
+  cover: getCoverImage(g.coverImage, g.title),
+  tags: g.tags,
+  desc: g.description,
+  price: Number(g.price) || 0,
+});
 
-  const platform = Array.isArray(g.platform) ? g.platform : [g.platform].filter(Boolean) as string[];
-
-  return {
-    id:      typeof g.id === 'number' ? g.id : 0,
-    name:    title ?? "Unknown",
-    genre:   typeof g.genre === 'string' ? g.genre : "Unknown",
-    year:    typeof g.releaseYear === 'number' ? g.releaseYear : null,
-    dev:     typeof g.developer === 'string' ? g.developer : extra.dev,
-    pub:     typeof g.publisher === 'string' ? g.publisher : extra.pub,
-    score:   typeof g.rating === 'number' ? g.rating : 0,
-    plat:    platform,
-    cover:   typeof g.coverImage === 'string' ? g.coverImage : "",
-    tags:    Array.isArray(g.tags) ? g.tags as string[] : extra.tags,
-    desc:    typeof g.description === 'string' ? g.description : extra.desc,
-  };
-};
-
-export const getGames = async (): Promise<Game[]> => {
-    const response = await fetch(API_BASE_URL);
-    if (!response.ok) throw new Error(`Error: ${response.status}`);
-
-    const result: PaginatedResult<Record<string, unknown>> = await response.json();
-    const rawGames = result.data ?? [];
-
-    return rawGames.map(mapApiGame);
+export const getGames = async (page = 1, limit = 10): Promise<PaginatedResult<ApiGame>> => {
+  const response = await client(`/games?page=${page}&limit=${limit}`);
+  if (!response.ok) throw new Error(`Error: ${response.status}`);
+  return response.json();
 };
 
 export const getGameById = async (id: number): Promise<Game | undefined> => {
-    const response = await fetch(`${API_BASE_URL}/${id}`);
-    if (!response.ok) return undefined;
-    const g = await response.json() as Record<string, unknown>;
-    return mapApiGame(g);
+  const response = await client(`/games/${id}`);
+  if (!response.ok) return undefined;
+  const g = await response.json() as ApiGame;
+  return mapApiGame(g);
 };
 
+export async function login(data: LoginDTO): Promise<AuthResponse> {
+  const res = await fetch(`${AUTH_URL}/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'Login failed' }));
+    throw new Error(err.error || 'Login failed');
+  }
+  return res.json();
+}
+
+export async function register(data: RegisterDTO): Promise<AuthResponse> {
+  const res = await fetch(`${AUTH_URL}/register`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'Registration failed' }));
+    throw new Error(err.error || 'Registration failed');
+  }
+  return res.json();
+}
+
+export async function logout(): Promise<void> {
+  await fetch(`${AUTH_URL}/logout`, {
+    method: 'POST',
+    credentials: 'include',
+  });
+}
+
 export const createGame = async (data: Record<string, unknown>): Promise<Game> => {
-    const response = await fetch(`${API_BASE_URL}/new`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
-    });
-    if (!response.ok) throw new Error("Failed to create");
-    const g = await response.json() as Record<string, unknown>;
-    return mapApiGame(g);
+  const response = await client(`/games/new`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
+  });
+  if (!response.ok) throw new Error("Failed to create");
+  const g = await response.json() as ApiGame;
+  return mapApiGame(g);
 };
 
 export const updateGame = async (id: number, data: Record<string, unknown>): Promise<Game> => {
-    const response = await fetch(`${API_BASE_URL}/${id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
-    });
-    if (!response.ok) throw new Error("Failed to update");
-    const g = await response.json() as Record<string, unknown>;
-    return mapApiGame(g);
+  const response = await client(`/games/${id}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
+  });
+  if (!response.ok) throw new Error("Failed to update");
+  const g = await response.json() as ApiGame;
+  return mapApiGame(g);
 };
 
 export const deleteGame = async (id: number): Promise<void> => {
-    const response = await fetch(`${API_BASE_URL}/${id}`, { method: "DELETE" });
-    if (!response.ok) throw new Error("Failed to delete");
+  const response = await client(`/games/${id}`, {
+    method: "DELETE",
+  });
+  if (!response.ok) throw new Error("Failed to delete");
+};
+
+// ===== RATINGS =====
+export const rateGame = async (id: number, rating: number): Promise<{ average: number; count: number }> => {
+  const response = await client(`/games/${id}/rate`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ rating }),
+  });
+  if (!response.ok) throw new Error('Failed to rate game');
+  return response.json();
+};
+
+// ===== CART =====
+export const getCart = async (): Promise<ApiGame[]> => {
+  const response = await client('/user/cart');
+  if (!response.ok) throw new Error('Failed to fetch cart');
+  return response.json();
+};
+
+export const addToCart = async (gameId: number): Promise<void> => {
+  const response = await client(`/user/cart/${gameId}`, { method: 'POST' });
+  if (!response.ok) throw new Error('Failed to add to cart');
+};
+
+export const removeFromCart = async (gameId: number): Promise<void> => {
+  const response = await client(`/user/cart/${gameId}`, { method: 'DELETE' });
+  if (!response.ok) throw new Error('Failed to remove from cart');
+};
+
+export const clearCart = async (): Promise<void> => {
+  const response = await client('/user/cart', { method: 'DELETE' });
+  if (!response.ok) throw new Error('Failed to clear cart');
 };
