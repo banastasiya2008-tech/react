@@ -1,38 +1,15 @@
-import { useState, useMemo, useCallback } from "react";
-import type { Game, FilterState, SortOption } from "../types";
+import { useMemo, useCallback } from "react";
+import type { Game } from "../types";
+import { useFiltersStore } from "../store/useFiltersStore";
+
 
 export function useFilters(allGames: Game[]) {
-  const [filters, setFilters] = useState<FilterState>({
-    query: "",
-    genre: "all",
-    minScore: 0,
-    sort: "score-d",
-  });
-
-  const setQuery = useCallback((query: string) => {
-    setFilters((prev) => ({ ...prev, query }));
-  }, []);
-
-  const setGenre = useCallback((genre: string) => {
-    setFilters((prev) => ({ ...prev, genre }));
-  }, []);
-
-  const setMinScore = useCallback((minScore: number) => {
-    setFilters((prev) => ({ ...prev, minScore }));
-  }, []);
-
-  const setSort = useCallback((sort: SortOption) => {
-    setFilters((prev) => ({ ...prev, sort }));
-  }, []);
-
-  const resetFilters = useCallback(() => {
-    setFilters({
-      query: "",
-      genre: "all",
-      minScore: 0,
-      sort: "score-d",
-    });
-  }, []);
+  const filters = useFiltersStore((s) => s.filters);
+  const setQuery = useFiltersStore((s) => s.setQuery);
+  const setGenre = useFiltersStore((s) => s.setGenre);
+  const setMinScore = useFiltersStore((s) => s.setMinScore);
+  const setSort = useFiltersStore((s) => s.setSort);
+  const resetFilters = useFiltersStore((s) => s.resetFilters);
 
   const matchQuery = useCallback((g: Game, q: string): boolean => {
     if (!q) return true;
@@ -45,7 +22,7 @@ export function useFilters(allGames: Game[]) {
   }, []);
 
   const filteredGames = useMemo(() => {
-    let list = allGames.filter(
+    const list = allGames.filter(
       (g) =>
         matchQuery(g, filters.query) &&
         (filters.genre === "all" || g.genre === filters.genre) &&
@@ -67,9 +44,10 @@ export function useFilters(allGames: Game[]) {
     return list;
   }, [allGames, filters, matchQuery]);
 
-  const genres = useMemo(() => {
-    return [...new Set(allGames.map((g) => g.genre).filter(Boolean))].sort();
-  }, [allGames]);
+  const genres = useMemo(
+    () => [...new Set(allGames.map((g) => g.genre).filter(Boolean))].sort(),
+    [allGames]
+  );
 
   const genreCounts = useMemo(() => {
     const base = allGames.filter(
@@ -93,4 +71,5 @@ export function useFilters(allGames: Game[]) {
     genres,
     genreCounts,
   };
+
 }

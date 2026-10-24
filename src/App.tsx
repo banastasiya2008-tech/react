@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from "react";
+import React, { useCallback, useEffect } from "react";
 import { Header } from "./components/Header";
 import { Sidebar } from "./components/Sidebar";
 import { GameGrid } from "./components/GameGrid";
@@ -7,39 +7,39 @@ import { GameDetail } from "./components/GameDetail";
 import CartPage from "./components/CartPage";
 import { Toast } from "./components/Toast";
 import { Overlay } from "./components/Overlay";
-import { useGames } from "./hooks/useGames";
 import { useFilters } from "./hooks/useFilters";
-import { useToast } from "./hooks/useToast";
 import { useAuthStore } from "./store/useAuthStore";
 import { useCartStore } from "./store/useCartStore";
-import type { Game, GameFormData } from "./types";
-
-type OverlayName = "form";
-type ViewName = "catalog" | "cart" | "detail";
+import { useGamesStore } from "./store/useGamesStore";
+import { useToastStore } from "./store/useToastStore";
+import { useUiStore } from "./store/useUiStore";
+import { initAuth } from "./store/initAuth";
+import type { GameFormData } from "./types";
 
 export const App: React.FC = () => {
-  useEffect(() => {
-    const init = async () => {
-      const token = useAuthStore.getState().token;
-      if (!token) {
-        try {
-          const res = await fetch('http://localhost:5003/api/auth/refresh', {
-            method: 'POST',
-            credentials: 'include',
-          });
-          if (res.ok) {
-            const data = await res.json();
-            useAuthStore.getState().login(data.user, data.accessToken);
-          }
-        } catch {
-          // нет валидной сессии
-        }
-      }
-    };
-    init();
-  }, []);
+  const allGames = useGamesStore((s) => s.allGames);
+  const loading = useGamesStore((s) => s.loading);
+  const loadGames = useGamesStore((s) => s.loadGames);
+  const addGame = useGamesStore((s) => s.addGame);
+  const updateGame = useGamesStore((s) => s.updateGame);
+  const deleteGame = useGamesStore((s) => s.deleteGame);
 
-  const { allGames, loading, addGame, updateGame, deleteGame } = useGames();
+  const toastMessage = useToastStore((s) => s.message);
+  const toastIsError = useToastStore((s) => s.isError);
+  const toastVisible = useToastStore((s) => s.visible);
+  const showToast = useToastStore((s) => s.showToast);
+  const showError = useToastStore((s) => s.showError);
+
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const fetchCart = useCartStore((s) => s.fetchCart);
+
+  const view = useUiStore((s) => s.view);
+  const activeOverlay = useUiStore((s) => s.activeOverlay);
+  const selectedGame = useUiStore((s) => s.selectedGame);
+  const editingGame = useUiStore((s) => s.editingGame);
+  const { openCart, openDetail, backToCatalog, openCreate, openEdit, closeOverlay } =
+    useUiStore.getState();
+
   const {
     filters,
     setQuery,
@@ -51,36 +51,23 @@ export const App: React.FC = () => {
     genres,
     genreCounts,
   } = useFilters(allGames);
-  const { toast, showToast, showError } = useToast();
-  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
-  const fetchCart = useCartStore((state) => state.fetchCart);
+
+  useEffect(() => {
+    initAuth();
+    loadGames();
+  }, [loadGames]);
 
   useEffect(() => {
     if (isAuthenticated) fetchCart();
   }, [isAuthenticated, fetchCart]);
 
-  const [view, setView] = useState<ViewName>("catalog");
-  const [activeOverlay, setActiveOverlay] = useState<OverlayName | null>(null);
-  const [selectedGame, setSelectedGame] = useState<Game | null>(null);
-  const [editingGame, setEditingGame] = useState<Game | null>(null);
-
-  const handleOpenDetail = useCallback((game: Game) => {
-    setSelectedGame(game);
-    setView("detail");
-  }, []);
-
-  const handleOpenEdit = useCallback((id: number) => {
-    const game = allGames.find((g) => g.id === id);
-    if (game) {
-      setEditingGame(game);
-      setActiveOverlay("form");
-    }
-  }, [allGames]);
-
-  const handleOpenCreate = useCallback(() => {
-    setEditingGame(null);
-    setActiveOverlay("form");
-  }, []);
+  const handleOpenEdit = useCallback(
+    (id: number) => {
+      const game = allGames.find((g) => g.id === id);
+      if (game) openEdit(game);
+    },
+    [allGames, openEdit]
+  );
 
   const handleSave = useCallback(
     async (data: GameFormData) => {
@@ -92,13 +79,12 @@ export const App: React.FC = () => {
           await addGame(data);
           showToast("Game created successfully");
         }
-        setActiveOverlay(null);
-        setEditingGame(null);
+        closeOverlay();
       } catch (err: any) {
         showError(err.message || "Failed to save game");
       }
     },
-    [editingGame, addGame, updateGame, showToast, showError]
+    [editingGame, addGame, updateGame, showToast, showError, closeOverlay]
   );
 
   const handleDelete = useCallback(
@@ -106,14 +92,13 @@ export const App: React.FC = () => {
       try {
         await deleteGame(id);
         showToast("Game deleted successfully");
-        setActiveOverlay(null);
-        setSelectedGame(null);
-        setView("catalog");
+        closeOverlay();
+        backToCatalog();
       } catch (err: any) {
         showError(err.message || "Failed to delete game");
       }
     },
-    [deleteGame, showToast, showError]
+    [deleteGame, showToast, showError, closeOverlay, backToCatalog]
   );
 
   return (
@@ -122,24 +107,18 @@ export const App: React.FC = () => {
         query={filters.query}
         onQueryChange={setQuery}
         totalCount={filteredGames.length}
-        onAddClick={handleOpenCreate}
-        onCartClick={() => setView("cart")}
+        onAddClick={openCreate}
+        onCartClick={openCart}
       />
 
-      {view === "cart" && <CartPage onBack={() => setView("catalog")} />}
+      {view === "cart" && <CartPage onBack={backToCatalog} />}
 
       {view === "detail" && selectedGame && (
         <GameDetail
           game={selectedGame}
-          onEdit={(id) => {
-            setView("catalog");
-            handleOpenEdit(id);
-          }}
+          onEdit={handleOpenEdit}
           onDelete={handleDelete}
-          onBack={() => {
-            setView("catalog");
-            setSelectedGame(null);
-          }}
+          onBack={backToCatalog}
         />
       )}
 
@@ -167,7 +146,7 @@ export const App: React.FC = () => {
               loading={loading}
               onOpen={(id: number) => {
                 const game = allGames.find((g) => g.id === id);
-                if (game) handleOpenDetail(game);
+                if (game) openDetail(game);
               }}
               onEdit={handleOpenEdit}
               onDelete={handleDelete}
@@ -176,18 +155,11 @@ export const App: React.FC = () => {
         </div>
       )}
 
-      <Overlay
-        isOpen={activeOverlay === "form"}
-        onClose={() => setActiveOverlay(null)}
-      >
-        <GameForm
-          game={editingGame}
-          onSave={handleSave}
-          onCancel={() => setActiveOverlay(null)}
-        />
+      <Overlay isOpen={activeOverlay === "form"} onClose={closeOverlay}>
+        <GameForm game={editingGame} onSave={handleSave} onCancel={closeOverlay} />
       </Overlay>
 
-      <Toast message={toast.message} isError={toast.isError} visible={toast.visible} />
+      <Toast message={toastMessage} isError={toastIsError} visible={toastVisible} />
     </div>
   );
 };

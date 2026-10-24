@@ -1,44 +1,34 @@
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
+import type { User } from '../types';
 
-export interface User {
-  id: number;
-  username: string;
-  email: string;
-  role: 'user' | 'moderator' | 'admin';
-}
+export type { User };
 
 interface AuthState {
   user: User | null;
-  token: string | null;
+  accessToken: string | null;
   isAuthenticated: boolean;
-  login: (user: User, token: string) => void;
-  logout: () => void;
-  setToken: (token: string) => void;
-  isAdmin: () => boolean;
-  isModerator: () => boolean;
+  isLoading: boolean;
+
+  setAuth: (user: User, accessToken: string) => void;
+  clearAuth: () => void;
+  setLoading: (isLoading: boolean) => void;
 }
 
-export const useAuthStore = create<AuthState>()(
-  persist(
-    (set, get) => ({
-      user: null,
-      token: null,
-      isAuthenticated: false,
+export const useAuthStore = create<AuthState>((set) => ({
+  user: null,
+  accessToken: null,
+  isAuthenticated: false,
+  isLoading: true,
 
-      login: (user, token) => set({ user, token, isAuthenticated: true }),
+  setAuth: (user, accessToken) =>
+    set({ user, accessToken, isAuthenticated: true, isLoading: false }),
 
-      logout: () => set({ user: null, token: null, isAuthenticated: false }),
+  clearAuth: () =>
+    set({ user: null, accessToken: null, isAuthenticated: false, isLoading: false }),
 
-      setToken: (token) => set({ token }),
+  setLoading: (isLoading) => set({ isLoading }),
+}));
 
-      isAdmin: () => get().user?.role === 'admin',
-
-      isModerator: () => ['admin', 'moderator'].includes(get().user?.role || ''),
-    }),
-    {
-      name: 'auth-storage',
-      partialize: (state) => ({ user: state.user, token: state.token }),
-    }
-  )
-);
+export const useIsAdmin = () => useAuthStore((s) => s.user?.role === 'admin');
+export const useIsModerator = () =>
+  useAuthStore((s) => s.user?.role === 'admin' || s.user?.role === 'moderator');

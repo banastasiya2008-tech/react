@@ -20,13 +20,15 @@ export const Header: React.FC<HeaderProps> = ({
   onCartClick,
 }) => {
   const [showAuth, setShowAuth] = useState(false);
-  const { user, isAuthenticated, logout: storeLogout } = useAuthStore();
-  const { getCount } = useCartStore();
-  const cartCount = getCount();
+  const user = useAuthStore((s) => s.user);
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const clearAuth = useAuthStore((s) => s.clearAuth);
+  const cartCount = useCartStore((s) => s.items.length);
 
   const handleLogout = async () => {
     try { await apiLogout(); } catch {}
-    storeLogout();
+    clearAuth();
+    useCartStore.setState({ items: [] });
   };
 
   return (

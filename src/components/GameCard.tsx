@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import type { Game } from '../types';
-import { useAuthStore } from '../store/useAuthStore';
+import { useAuthStore, useIsAdmin, useIsModerator } from '../store/useAuthStore';
 import { useCartStore } from '../store/useCartStore';
-import { useToast } from '../hooks/useToast';
+import { useToastStore } from '../store/useToastStore';
 
 interface GameCardProps {
   game: Game;
@@ -20,12 +20,13 @@ function scoreClass(score: number): string {
 export const GameCard: React.FC<GameCardProps> = ({ game, onEdit, onDelete, onOpen }) => {
   const [imgError, setImgError] = useState(false);
   const plats = game.plat?.join(', ') || '-';
-  const isAdmin = useAuthStore((state) => state.isAdmin());
-  const isModerator = useAuthStore((state) => state.isModerator());
-  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
-  const { isInCart, addItem } = useCartStore();
-  const { showToast, showError } = useToast();
-  const inCart = isInCart(game.id);
+  const isAdmin = useIsAdmin();
+  const isModerator = useIsModerator();
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const addItem = useCartStore((s) => s.addItem);
+  const inCart = useCartStore((s) => s.items.some((i) => i.id === game.id));
+  const showToast = useToastStore((s) => s.showToast);
+  const showError = useToastStore((s) => s.showError);
 
   const hasValidCover = game.cover && game.cover.startsWith('http') && !imgError;
   const price = Number(game.price) || 0;
@@ -102,4 +103,4 @@ export const GameCard: React.FC<GameCardProps> = ({ game, onEdit, onDelete, onOp
       </div>
     </div>
   );
-}
+} 

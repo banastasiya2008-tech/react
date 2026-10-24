@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useCartStore } from '../store/useCartStore';
 import { clearCart } from '../api/api';
 import { getCoverImage } from '../api/api';
-import { useToast } from '../hooks/useToast';
+import { useToastStore } from '../store/useToastStore';
 import type { ApiGame } from '../types';
 
 interface CartPageProps {
@@ -23,8 +23,10 @@ function CartItemImg({ game }: { game: ApiGame }) {
 }
 
 export default function CartPage({ onBack }: CartPageProps) {
-  const { items, fetchCart, removeItem } = useCartStore();
-  const { showToast } = useToast();
+  const items = useCartStore((s) => s.items);
+  const fetchCart = useCartStore((s) => s.fetchCart);
+  const removeItem = useCartStore((s) => s.removeItem);
+  const showToast = useToastStore((s) => s.showToast);
 
   useEffect(() => {
     fetchCart();

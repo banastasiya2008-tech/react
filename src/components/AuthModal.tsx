@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { login, register } from '../api/api';
-import { useToast } from '../hooks/useToast';
+import { useToastStore } from '../store/useToastStore';
 import { useAuthStore } from '../store/useAuthStore';
 
 interface AuthModalProps {
@@ -13,8 +13,8 @@ export default function AuthModal({ onClose }: AuthModalProps) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
-  const { showToast } = useToast();
-  const storeLogin = useAuthStore((state) => state.login);
+  const showToast = useToastStore((s) => s.showToast);
+  const setAuth = useAuthStore((s) => s.setAuth);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -24,7 +24,7 @@ export default function AuthModal({ onClose }: AuthModalProps) {
         ? await login({ email, password })
         : await register({ username, email, password });
       
-      storeLogin(data.user, data.accessToken);
+      setAuth(data.user, data.accessToken);
       showToast(isLogin ? 'Logged in successfully!' : 'Registered successfully!');
       onClose();
     } catch (err) {

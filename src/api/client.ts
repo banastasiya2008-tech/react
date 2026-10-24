@@ -8,7 +8,7 @@ export async function client(
 ): Promise<Response> {
   const url = endpoint.startsWith('http') ? endpoint : `${API_BASE}${endpoint}`;
 
-  const token = useAuthStore.getState().token;
+  const token = useAuthStore.getState().accessToken;
 
   const headers: Record<string, string> = {
     ...(options.headers as Record<string, string> || {}),
@@ -18,14 +18,13 @@ export async function client(
     headers['Authorization'] = `Bearer ${token}`;
   }
 
-  // Первый запрос
   let res = await fetch(url, {
     ...options,
     headers,
     credentials: 'include',
   });
 
-  // Авто-рефреш: только если был токен и получили 401
+  
   if (res.status === 401 && token) {
     try {
       const refreshRes = await fetch(`${API_BASE}/auth/refresh`, {
@@ -36,9 +35,8 @@ export async function client(
       if (!refreshRes.ok) throw new Error('Refresh failed');
 
       const data = await refreshRes.json();
-      useAuthStore.getState().setToken(data.accessToken);
+      useAuthStore.getState().setAuth(data.user ?? useAuthStore.getState().user!, data.accessToken);
 
-      // Повторяем оригинальный запрос с новым токеном
       headers['Authorization'] = `Bearer ${data.accessToken}`;
       res = await fetch(url, {
         ...options,
@@ -46,7 +44,7 @@ export async function client(
         credentials: 'include',
       });
     } catch {
-      useAuthStore.getState().logout();
+      useAuthStore.getState().clearAuth();
       throw new Error('Session expired. Please login again.');
     }
   }

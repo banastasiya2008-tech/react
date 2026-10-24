@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
 import type { Game } from '../types';
-import { useAuthStore } from '../store/useAuthStore';
+import { useAuthStore, useIsAdmin, useIsModerator } from '../store/useAuthStore';
 import { useCartStore } from '../store/useCartStore';
 import { rateGame } from '../api/api';
-import { useToast } from '../hooks/useToast';
+import { useToastStore } from '../store/useToastStore';
 
 interface GameDetailProps {
   game: Game;
@@ -26,11 +26,14 @@ export const GameDetail: React.FC<GameDetailProps> = ({ game, onEdit, onDelete, 
   const [ratingCount, setRatingCount] = useState<number>(0);
 
   const hasValidCover = game.cover && game.cover.startsWith('http') && !imgError;
-  const isAdmin = useAuthStore((state) => state.isAdmin());
-  const isModerator = useAuthStore((state) => state.isModerator());
-  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
-  const { isInCart, addItem } = useCartStore();
-  const { showToast, showError } = useToast();
+  const isAdmin = useIsAdmin();
+  const isModerator = useIsModerator();
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const addItem = useCartStore((s) => s.addItem);
+  const inCartStore = useCartStore((s) => s.items);
+  const isInCart = (id: number) => inCartStore.some((i) => i.id === id);
+  const showToast = useToastStore((s) => s.showToast);
+  const showError = useToastStore((s) => s.showError);
   const inCart = isInCart(game.id);
 
   const handleRate = async (rating: number) => {
