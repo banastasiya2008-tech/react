@@ -1,104 +1,99 @@
-import { query, queryOne, exec } from '../utils/db.utils.js';
 import bcrypt from 'bcryptjs';
-import crypto from 'crypto';
+import { AppDataSource } from '../data-source.js';
+import { User } from '../entities/User.js';
+import { UserLibrary } from '../entities/UserLibrary.js';
+import { CartItem } from '../entities/CartItem.js';
+import { toApiGame } from '../utils/game.mapper.js';
+
+const userRepository = AppDataSource.getRepository(User);
+const libraryRepository = AppDataSource.getRepository(UserLibrary);
+const cartRepository = AppDataSource.getRepository(CartItem);
 
 export class UserRepository {
   // Регистрация
   async register(data: any) {
-    const existing = await queryOne('SELECT id FROM users WHERE email = $1', [data.email]);
-    if (existing) {
+    if (await userRepository.existsBy({ email: data.email })) {
       throw new Error('Email already registered');
     }
 
     const hashedPassword = await bcrypt.hash(data.password, 10);
-    const result = await exec(
-      'INSERT INTO users (username, email, password) VALUES ($1, $2, $3) RETURNING id',
-      [data.username, data.email, hashedPassword]
+    const saved = await userRepository.save(
+      userRepository.create({
+        username: data.username,
+        email: data.email,
+        password: hashedPassword,
+      })
     );
 
-    return this.getById(result.lastID!);
+    return this.getByIdOrThrow(saved.id);
   }
 
-  // Логин — возвращает простой токен (случайная строка)
+  // Логин: пароль (select: false) достаём явно, только здесь
   async login(data: any) {
-    const user = await queryOne('SELECT * FROM users WHERE email = $1', [data.email]);
+    const user = await userRepository
+      .createQueryBuilder('user')
+      .addSelect('user.password')
+      .where('user.email = :email', { email: data.email })
+      .getOne();
     if (!user) {
       throw new Error('Invalid credentials');
     }
 
     const valid = await bcrypt.compare(data.password, user.password);
     if (!valid) throw new Error('Invalid credentials');
-    return this.getById(user.id);
+    return this.getByIdOrThrow(user.id);
   }
 
+  // Публичные данные пользователя (без пароля)
   async getById(id: number) {
-    return queryOne('SELECT id, username, email, role, created_at as "createdAt" FROM users WHERE id = $1', [id]);
+    return userRepository.findOne({
+      where: { id },
+      select: { id: true, username: true, email: true, role: true, createdAt: true },
+    });
   }
 
+  private async getByIdOrThrow(id: number) {
+    const user = await this.getById(id);
+    if (!user) throw new Error('User not found');
+    return user;
+  }
+
+  // LIBRARY
   async getLibrary(userId: number) {
-    const rows = await query('SELECT game_id FROM user_library WHERE user_id = $1', [userId]);
-    return rows.map((r: any) => r.game_id);
+    const rows = await libraryRepository.find({ where: { userId }, select: { gameId: true } });
+    return rows.map((r) => r.gameId);
   }
 
   async addToLibrary(userId: number, gameId: number) {
-    const ex = await queryOne('SELECT 1 FROM user_library WHERE user_id = $1 AND game_id = $2', [userId, gameId]);
-    if (ex) throw new Error('Already in library');
-    await exec('INSERT INTO user_library (user_id, game_id) VALUES ($1,$2)', [userId, gameId]);
+    if (await libraryRepository.existsBy({ userId, gameId })) throw new Error('Already in library');
+    await libraryRepository.save(libraryRepository.create({ userId, gameId }));
   }
 
   async removeFromLibrary(userId: number, gameId: number) {
-    await exec('DELETE FROM user_library WHERE user_id = $1 AND game_id = $2', [userId, gameId]);
-  }
-
-  // Выход — удаляем токен
-  async logout(userId: number) {
-    await exec('UPDATE users SET token = NULL WHERE id = $1', [userId]);
+    await libraryRepository.delete({ userId, gameId });
   }
 
   // CART
   async addToCart(userId: number, gameId: number) {
-    const ex = await queryOne('SELECT 1 FROM cart_items WHERE user_id = $1 AND game_id = $2', [userId, gameId]);
-    if (ex) throw new Error('Already in cart');
-    await exec('INSERT INTO cart_items (user_id, game_id) VALUES ($1,$2)', [userId, gameId]);
+    if (await cartRepository.existsBy({ userId, gameId })) throw new Error('Already in cart');
+    await cartRepository.save(cartRepository.create({ userId, gameId }));
   }
 
   async removeFromCart(userId: number, gameId: number) {
-    await exec('DELETE FROM cart_items WHERE user_id = $1 AND game_id = $2', [userId, gameId]);
+    await cartRepository.delete({ userId, gameId });
   }
 
+  // Корзина с играми ОДНИМ запросом (relations -> JOIN), без N+1
   async getCart(userId: number) {
-    const rows = await query(
-      `SELECT g.* FROM games g JOIN cart_items c ON g.id = c.game_id WHERE c.user_id = $1 ORDER BY c.created_at DESC`,
-      [userId]
-    );
-    return rows.map((row: any) => ({
-      id: row.id,
-      userId: row.user_id,
-      title: row.title,
-      genre: row.genre,
-      platform: Array.isArray(row.platform) ? row.platform : JSON.parse(row.platform || '[]'),
-      releaseYear: row.release_year,
-      developer: row.developer,
-      publisher: row.publisher,
-      rating: Number(row.rating) || 0,
-      coverImage: row.cover_image,
-      tags: Array.isArray(row.tags) ? row.tags : JSON.parse(row.tags || '[]'),
-      description: row.description,
-      inStock: row.in_stock,
-      price: Number(row.price) || 0,
-      createdAt: row.created_at,
-    }));
+    const items = await cartRepository.find({
+      where: { userId },
+      relations: { game: true },
+      order: { createdAt: 'DESC' },
+    });
+    return items.map((item) => toApiGame(item.game));
   }
 
   async clearCart(userId: number) {
-    await exec('DELETE FROM cart_items WHERE user_id = $1', [userId]);
-  }
-
-  // Проверить токен 
-  async getByToken(token: string) {
-    return queryOne(
-      'SELECT id, username, email FROM users WHERE token = $1',
-      [token]
-    );
+    await cartRepository.delete({ userId });
   }
 }

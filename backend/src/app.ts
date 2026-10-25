@@ -1,3 +1,4 @@
+import 'reflect-metadata';
 import express from 'express';
 import dotenv from 'dotenv';
 import cors from 'cors';
@@ -5,6 +6,7 @@ import cookieParser from 'cookie-parser';
 import gamesRouter from './routes/games.route.js';
 import authRouter from './routes/auth.route.js';
 import userRouter from './routes/user.route.js';
+import { AppDataSource } from './data-source.js';
 
 dotenv.config();
 
@@ -32,6 +34,15 @@ app.use((err: any, _req: express.Request, res: express.Response, _next: express.
   res.status(500).json({ error: 'Something went wrong!' });
 });
 
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-});
+// Сначала подключаемся к БД через TypeORM, потом поднимаем сервер
+AppDataSource.initialize()
+  .then(() => {
+    console.log('Database connected (TypeORM)');
+    app.listen(PORT, () => {
+      console.log(`Server running on port ${PORT}`);
+    });
+  })
+  .catch((err) => {
+    console.error('Database connection failed:', err);
+    process.exit(1);
+  });
