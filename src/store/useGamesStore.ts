@@ -31,7 +31,7 @@ export const useGamesStore = create<GamesState>((set) => ({
   loadGames: async (p = 1) => {
     set({ loading: true, error: null });
     try {
-      const result = await storage.getAll(p, 10);
+      const result = await storage.getAll(p, 100);
       set({
         allGames: result.data.map(adaptApiGame),
         totalPages: result.meta.totalPages,
@@ -47,7 +47,7 @@ export const useGamesStore = create<GamesState>((set) => ({
   searchGames: async (query, p = 1) => {
     set({ loading: true, error: null });
     try {
-      const result = await storage.search(query, p, 10);
+      const result = await storage.search(query, p, 100);
       set({
         allGames: result.data.map(adaptApiGame),
         totalPages: result.meta.totalPages,

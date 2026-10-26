@@ -3,6 +3,7 @@ import { UserRepository } from '../repositories/user.repository.js';
 import { TokenRepository } from '../repositories/token.repository.js';
 import { generateAccessToken, generateRefreshToken, verifyToken } from '../services/token.service.js';
 import { authMiddleware } from '../middleware/auth.middleware.js';
+import { loginLimiter, registerLimiter } from '../middleware/rateLimiter.js';
 
 const router = Router();
 const userRepo = new UserRepository();
@@ -15,7 +16,7 @@ const REFRESH_COOKIE_OPTIONS = {
   maxAge: 7 * 24 * 60 * 60 * 1000,
 };
 
-router.post('/register', async (req: Request, res: Response) => {
+router.post('/register', registerLimiter, async (req: Request, res: Response) => {
   try {
     const user = await userRepo.register(req.body);
     
@@ -34,7 +35,7 @@ router.post('/register', async (req: Request, res: Response) => {
   }
 });
 
-router.post('/login', async (req: Request, res: Response) => {
+router.post('/login', loginLimiter, async (req: Request, res: Response) => {
   try {
     const user = await userRepo.login(req.body);
     

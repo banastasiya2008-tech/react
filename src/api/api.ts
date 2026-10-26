@@ -26,7 +26,7 @@ const mapApiGame = (g: ApiGame): Game => ({
   price: Number(g.price) || 0,
 });
 
-export const getGames = async (page = 1, limit = 10): Promise<PaginatedResult<ApiGame>> => {
+export const getGames = async (page = 1, limit = 100): Promise<PaginatedResult<ApiGame>> => {
   const response = await client(`/games?page=${page}&limit=${limit}`);
   if (!response.ok) throw new Error(`Error: ${response.status}`);
   return response.json();

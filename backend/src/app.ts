@@ -7,6 +7,8 @@ import gamesRouter from './routes/games.route.js';
 import authRouter from './routes/auth.route.js';
 import userRouter from './routes/user.route.js';
 import { AppDataSource } from './data-source.js';
+import { connectRedis } from './redis/client.js';
+import { apiLimiter, initRateLimiters } from './middleware/rateLimiter.js';
 
 dotenv.config();
 
@@ -21,6 +23,8 @@ app.use(cors({
 app.use(express.json());
 app.use(cookieParser());
 
+app.use('/api', apiLimiter);
+
 app.use('/api/games', gamesRouter);
 app.use('/api/auth', authRouter);
 app.use('/api/user', userRouter);
@@ -34,10 +38,11 @@ app.use((err: any, _req: express.Request, res: express.Response, _next: express.
   res.status(500).json({ error: 'Something went wrong!' });
 });
 
-// Сначала подключаемся к БД через TypeORM, потом поднимаем сервер
 AppDataSource.initialize()
-  .then(() => {
+  .then(async () => {
     console.log('Database connected (TypeORM)');
+    await connectRedis();
+    initRateLimiters();
     app.listen(PORT, () => {
       console.log(`Server running on port ${PORT}`);
     });

@@ -1,13 +1,13 @@
 import { client } from './client';
 
 export class GameStorage {
-  async getAll(page = 1, limit = 10) {
+  async getAll(page = 1, limit = 100) {
     const response = await client(`/games?page=${page}&limit=${limit}`);
     if (!response.ok) throw new Error('Failed to fetch games');
     return response.json();
   }
 
-  async search(query: string, page = 1, limit = 10) {
+  async search(query: string, page = 1, limit = 100) {
     const response = await client(
       `/games/search?q=${encodeURIComponent(query)}&page=${page}&limit=${limit}`
     );

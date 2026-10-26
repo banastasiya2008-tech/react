@@ -17,7 +17,7 @@ function scoreClass(score: number): string {
   return 'score-low';
 }
 
-export const GameCard: React.FC<GameCardProps> = ({ game, onEdit, onDelete, onOpen }) => {
+export const GameCard = React.memo(function GameCard({ game, onEdit, onDelete, onOpen }: GameCardProps) {
   const [imgError, setImgError] = useState(false);
   const plats = game.plat?.join(', ') || '-';
   const isAdmin = useIsAdmin();
@@ -48,6 +48,7 @@ export const GameCard: React.FC<GameCardProps> = ({ game, onEdit, onDelete, onOp
           src={game.cover} 
           alt={game.name} 
           className="card-art" 
+          loading="lazy"
           onError={() => setImgError(true)}
         />
       ) : (
@@ -103,4 +104,4 @@ export const GameCard: React.FC<GameCardProps> = ({ game, onEdit, onDelete, onOp
       </div>
     </div>
   );
-} 
+});

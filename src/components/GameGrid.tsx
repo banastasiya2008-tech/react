@@ -10,13 +10,13 @@ interface GameGridProps {
   onDelete: (id: number) => void;
 }
 
-export const GameGrid: React.FC<GameGridProps> = ({
+export const GameGrid = React.memo(function GameGrid({
   games,
   loading,
   onOpen,
   onEdit,
   onDelete,
-}) => {
+}: GameGridProps) {
   if (loading) {
     return (
       <div className="grid">
@@ -53,4 +53,4 @@ export const GameGrid: React.FC<GameGridProps> = ({
       ))}
     </div>
   );
-};
+});

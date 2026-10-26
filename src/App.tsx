@@ -1,10 +1,7 @@
-import React, { useCallback, useEffect } from "react";
+import React, { Suspense, lazy, useCallback, useEffect } from "react";
 import { Header } from "./components/Header";
 import { Sidebar } from "./components/Sidebar";
 import { GameGrid } from "./components/GameGrid";
-import { GameForm } from "./components/GameForm";
-import { GameDetail } from "./components/GameDetail";
-import CartPage from "./components/CartPage";
 import { Toast } from "./components/Toast";
 import { Overlay } from "./components/Overlay";
 import { useFilters } from "./hooks/useFilters";
@@ -16,19 +13,28 @@ import { useUiStore } from "./store/useUiStore";
 import { initAuth } from "./store/initAuth";
 import type { GameFormData } from "./types";
 
+const CartPage = lazy(() => import("./components/CartPage"));
+const GameDetail = lazy(() =>
+  import("./components/GameDetail").then((m) => ({ default: m.GameDetail }))
+);
+const GameForm = lazy(() =>
+  import("./components/GameForm").then((m) => ({ default: m.GameForm }))
+);
+
+const { openCart, openDetail, backToCatalog, openCreate, openEdit, closeOverlay } =
+  useUiStore.getState();
+const { showToast, showError } = useToastStore.getState();
+
+const ScreenLoader = () => (
+  <div className="empty">
+    <h3>Loading...</h3>
+  </div>
+);
+
 export const App: React.FC = () => {
   const allGames = useGamesStore((s) => s.allGames);
   const loading = useGamesStore((s) => s.loading);
   const loadGames = useGamesStore((s) => s.loadGames);
-  const addGame = useGamesStore((s) => s.addGame);
-  const updateGame = useGamesStore((s) => s.updateGame);
-  const deleteGame = useGamesStore((s) => s.deleteGame);
-
-  const toastMessage = useToastStore((s) => s.message);
-  const toastIsError = useToastStore((s) => s.isError);
-  const toastVisible = useToastStore((s) => s.visible);
-  const showToast = useToastStore((s) => s.showToast);
-  const showError = useToastStore((s) => s.showError);
 
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const fetchCart = useCartStore((s) => s.fetchCart);
@@ -36,9 +42,7 @@ export const App: React.FC = () => {
   const view = useUiStore((s) => s.view);
   const activeOverlay = useUiStore((s) => s.activeOverlay);
   const selectedGame = useUiStore((s) => s.selectedGame);
-  const editingGame = useUiStore((s) => s.editingGame);
-  const { openCart, openDetail, backToCatalog, openCreate, openEdit, closeOverlay } =
-    useUiStore.getState();
+    const editingGame = useUiStore((s) => s.editingGame);
 
   const {
     filters,
@@ -61,45 +65,43 @@ export const App: React.FC = () => {
     if (isAuthenticated) fetchCart();
   }, [isAuthenticated, fetchCart]);
 
-  const handleOpenEdit = useCallback(
-    (id: number) => {
-      const game = allGames.find((g) => g.id === id);
-      if (game) openEdit(game);
-    },
-    [allGames, openEdit]
-  );
+  const handleOpenDetail = useCallback((id: number) => {
+    const game = useGamesStore.getState().allGames.find((g) => g.id === id);
+    if (game) openDetail(game);
+  }, []);
 
-  const handleSave = useCallback(
-    async (data: GameFormData) => {
-      try {
-        if (editingGame) {
-          await updateGame(editingGame.id, data);
-          showToast("Game updated successfully");
-        } else {
-          await addGame(data);
-          showToast("Game created successfully");
-        }
-        closeOverlay();
-      } catch (err: any) {
-        showError(err.message || "Failed to save game");
-      }
-    },
-    [editingGame, addGame, updateGame, showToast, showError, closeOverlay]
-  );
+  const handleOpenEdit = useCallback((id: number) => {
+    const game = useGamesStore.getState().allGames.find((g) => g.id === id);
+    if (game) openEdit(game);
+  }, []);
 
-  const handleDelete = useCallback(
-    async (id: number) => {
-      try {
-        await deleteGame(id);
-        showToast("Game deleted successfully");
-        closeOverlay();
-        backToCatalog();
-      } catch (err: any) {
-        showError(err.message || "Failed to delete game");
+  const handleSave = useCallback(async (data: GameFormData) => {
+    const { updateGame, addGame } = useGamesStore.getState();
+    const editing = useUiStore.getState().editingGame;
+    try {
+      if (editing) {
+        await updateGame(editing.id, data);
+        showToast("Game updated successfully");
+      } else {
+        await addGame(data);
+        showToast("Game created successfully");
       }
-    },
-    [deleteGame, showToast, showError, closeOverlay, backToCatalog]
-  );
+      closeOverlay();
+    } catch (err: any) {
+      showError(err.message || "Failed to save game");
+    }
+  }, []);
+
+  const handleDelete = useCallback(async (id: number) => {
+    try {
+      await useGamesStore.getState().deleteGame(id);
+      showToast("Game deleted successfully");
+      closeOverlay();
+      backToCatalog();
+    } catch (err: any) {
+      showError(err.message || "Failed to delete game");
+    }
+  }, []);
 
   return (
     <div className="app">
@@ -111,16 +113,18 @@ export const App: React.FC = () => {
         onCartClick={openCart}
       />
 
-      {view === "cart" && <CartPage onBack={backToCatalog} />}
+      <Suspense fallback={<ScreenLoader />}>
+        {view === "cart" && <CartPage onBack={backToCatalog} />}
 
-      {view === "detail" && selectedGame && (
-        <GameDetail
-          game={selectedGame}
-          onEdit={handleOpenEdit}
-          onDelete={handleDelete}
-          onBack={backToCatalog}
-        />
-      )}
+        {view === "detail" && selectedGame && (
+          <GameDetail
+            game={selectedGame}
+            onEdit={handleOpenEdit}
+            onDelete={handleDelete}
+            onBack={backToCatalog}
+          />
+        )}
+      </Suspense>
 
       {view === "catalog" && (
         <div className="main">
@@ -144,10 +148,7 @@ export const App: React.FC = () => {
             <GameGrid
               games={filteredGames}
               loading={loading}
-              onOpen={(id: number) => {
-                const game = allGames.find((g) => g.id === id);
-                if (game) openDetail(game);
-              }}
+              onOpen={handleOpenDetail}
               onEdit={handleOpenEdit}
               onDelete={handleDelete}
             />
@@ -156,10 +157,14 @@ export const App: React.FC = () => {
       )}
 
       <Overlay isOpen={activeOverlay === "form"} onClose={closeOverlay}>
-        <GameForm game={editingGame} onSave={handleSave} onCancel={closeOverlay} />
+        {activeOverlay === "form" && (
+          <Suspense fallback={null}>
+            <GameForm game={editingGame} onSave={handleSave} onCancel={closeOverlay} />
+          </Suspense>
+        )}
       </Overlay>
 
-      <Toast message={toastMessage} isError={toastIsError} visible={toastVisible} />
+      <Toast />
     </div>
   );
 };

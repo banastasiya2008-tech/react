@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useCartStore } from '../store/useCartStore';
 import { clearCart } from '../api/api';
 import { getCoverImage } from '../api/api';
@@ -17,6 +17,7 @@ function CartItemImg({ game }: { game: ApiGame }) {
       src={src}
       alt={game.title}
       className="cart-item-img"
+      loading="lazy"
       onError={() => setBroken(true)}
     />
   );
@@ -38,7 +39,10 @@ export default function CartPage({ onBack }: CartPageProps) {
     showToast('Cart cleared');
   };
 
-  const total = items.reduce((sum, item) => sum + (Number(item.price) || 0), 0);
+  const total = useMemo(
+    () => items.reduce((sum, item) => sum + (Number(item.price) || 0), 0),
+    [items]
+  );
 
   return (
     <div className="cart-page">
